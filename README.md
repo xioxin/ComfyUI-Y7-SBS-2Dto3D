@@ -116,8 +116,7 @@ ComfyUI custom nodes that convert 2D images or videos into 3D formats using dept
 >     - **mesh_warping**: Smoother, more natural depth with curved distortion
 >     - **grid_sampling**: Faster, simpler pixel shifting for classic stereo effect
 >   - **num_views**: Number of viewing angles to generate (default: 40 for typical lenticular displays)
->   - **view_offset**: Angular offset between each view in degrees (default: 1.0). Higher values increase depth intensity
->   - **depth_scale**: Controls the strength of the 3D effect (default: 30). Higher values create more pronounced depth
+>   - **depth_scale**: Controls the strength of the 3D effect (default: 5). Lower values (3-10) work well for lenticular displays
 >   - **convergence**: Sets the depth plane (0.0-1.0):
 >     - **0.0**: Objects appear to protrude from the screen (pop-out effect)
 >     - **0.5**: Balanced depth with some objects protruding and some receding (recommended)
@@ -136,6 +135,34 @@ ComfyUI custom nodes that convert 2D images or videos into 3D formats using dept
 >   - The views are centered around the original image position and distributed evenly left and right
 >   - This creates a true glasses-free 3D effect that works for multiple viewers
 >   - The output is a single grid image containing all views that needs to be processed by your display's software
+> </details>
+
+### Y7 Lenticular Video (Multi-View)
+> Takes a video's frames and their depth maps and generates multiple viewing angles per frame arranged in a grid for lenticular displays (naked eye 3D).
+>
+> <details>
+>   <summary>ℹ️ <i>See More Information</i></summary>
+>
+>   <strong>Inputs/Widgets</strong>
+>
+>   - **frames**: The frames of the video you wish to convert to multi-view 3D
+>   - **depth_maps**: The depth maps of video frames
+>   - **method**: Select the 3D rendering method:
+>     - **mesh_warping**: Smoother, more natural depth with curved distortion
+>     - **grid_sampling**: Faster, simpler pixel shifting for classic stereo effect
+>   - **num_views**: Number of viewing angles to generate per frame (default: 40)
+>   - **depth_scale**: Controls the strength of the 3D effect (default: 5). Lower values work well for lenticular displays
+>   - **convergence**: Sets the depth plane (0.0-1.0, default: 0.5)
+>   - **grid_layout**: Output arrangement pattern (z_pattern or column_first)
+>   - **grid_columns**: Number of columns in the output grid (default: 8)
+>   - **depth_blur_strength**: Controls how much to blur the depth map transitions (3-33, odd values only)
+>   - **temporal_smoothing**: Controls smoothing between frames (0.0-0.5). Higher values create more consistent depth perception between frames
+>   - **batch_size**: Number of video frames to process at once. Lower values use less memory
+>
+>   <strong>Performance Note</strong>
+>   - Processing videos with 40 views per frame is significantly slower than SBS (2 views)
+>   - Use lower batch_size values if you encounter memory issues
+>   - Temporal smoothing helps reduce flickering between frames
 > </details>
 
 ### About Cross-eyed Mode

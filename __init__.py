@@ -1,19 +1,21 @@
 # from .nodes.brightness import Y7Nodes_Brightness
 # from .nodes.template_node import Y7_TemplateNode
 from .nodes.documentation import format_descriptions
-from .nodes.sbs import Y7_SideBySide, Y7_VideoSideBySide, Y7_LenticularDisplay
+from .nodes.sbs import Y7_SideBySide, Y7_VideoSideBySide, Y7_LenticularDisplay, Y7_VideoLenticularDisplay
 
 
 NODE_CLASS_MAPPINGS = {
     "Y7_SideBySide": Y7_SideBySide,
     "Y7_VideoSideBySide": Y7_VideoSideBySide,
     "Y7_LenticularDisplay": Y7_LenticularDisplay,
+    "Y7_VideoLenticularDisplay": Y7_VideoLenticularDisplay,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
     "Y7_SideBySide": "Y7 SBS (Image)",
     "Y7_VideoSideBySide": "Y7 SBS (Video)",
     "Y7_LenticularDisplay": "Y7 Lenticular (Multi-View)",
+    "Y7_VideoLenticularDisplay": "Y7 Lenticular Video (Multi-View)",
 }
 
 # Apply HTML-formatted documentation to node classes
