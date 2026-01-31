@@ -72,6 +72,34 @@ descriptions = {
         normal("4. Use the 'Video Combine' node from the video helper suite to rebuild the video", 1),
     ],
 
+    "Y7_LenticularDisplay": [
+        "Multi-View 3D for Lenticular Displays",
+        short_desc("Generates multiple viewing angles for naked eye 3D lenticular displays"),
+        normal("Processes an image and its depth map to generate multiple views arranged in a grid, suitable for lenticular displays (naked eye 3D)."),
+        normal("Inputs:"),
+        normal("- `base_image`: The main image to convert to multi-view format.", 1),
+        normal("- `depth_map`: Grayscale depth map of the base image.", 1),
+        normal("- `method`: `mesh_warping` or `grid_sampling` to shift pixels based on the depth map.", 1),
+        normal("- `num_views`: Number of viewing angles to generate (default: 40 for typical lenticular displays).", 1),
+        normal("- `view_offset`: Angular offset between each view in degrees (default: 1.0). Controls depth intensity.", 1),
+        normal("- `depth_scale`: Controls the strength of the 3D effect (default: 30). Higher values create more pronounced depth.", 1),
+        normal("- `convergence`: Sets the depth plane (0.0-1.0):", 1),
+        normal("  - 0.0: Objects appear to protrude from the screen (pop-out effect).", 2),
+        normal("  - 0.5: Balanced depth with some objects protruding and some receding.", 2),
+        normal("  - 1.0: Objects appear to recede into the screen (depth effect).", 2),
+        normal("- `grid_layout`: Output arrangement pattern:", 1),
+        normal("  - z_pattern: Left-to-right, top-to-bottom (standard).", 2),
+        normal("  - column_first: Top-to-bottom, left-to-right.", 2),
+        normal("  - row_first: Left-to-right, top-to-bottom (same as z_pattern).", 2),
+        normal("- `grid_columns`: Number of columns in the output grid (default: 8).", 1),
+        normal("- `depth_blur_strength`: Controls how much to blur the depth map transitions (3-33, odd values only).", 1),
+        normal("Output:"),
+        normal("- A grid image containing all generated views arranged according to the specified layout.", 1),
+        normal("Use Case:"),
+        normal("- Designed for lenticular displays that show different images based on viewing angle.", 1),
+        normal("- Views are centered around the original image position and distributed evenly left and right.", 1),
+    ],
+
     # Add more node descriptions here
 }
 

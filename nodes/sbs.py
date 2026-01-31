@@ -554,6 +554,122 @@ class Y7_VideoSideBySide:
         return (processed_frames,)
 
 
+# ========================================================================================
+# LENTICULAR DISPLAY (Multi-View for Naked Eye 3D)
+# ========================================================================================
+class Y7_LenticularDisplay:
+    """
+    Generates multi-view images for lenticular displays (naked eye 3D).
+    Creates N views from a depth map, arranged in a grid pattern.
+    """
+    
+    def __init__(self):
+        pass
+
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "base_image": ("IMAGE", {
+                    "tooltip": "The main image to convert to multi-view lenticular display format"
+                }),
+                "depth_map": ("IMAGE", {
+                    "tooltip": "Grayscale depth map where brighter areas appear closer and darker areas further away"
+                }),
+                "method": (["mesh_warping", "grid_sampling"], {
+                    "default": "mesh_warping",
+                    "tooltip": "Select the 3D rendering method:\n- mesh_warping: produces smoother, more natural depth with curved distortion\n- grid_sampling: faster, simpler pixel shifting for a classic stereo effect"
+                }),
+                "num_views": ("INT", {
+                    "default": 40,
+                    "min": 2,
+                    "max": 100,
+                    "step": 1,
+                    "tooltip": "Number of viewing angles to generate (typically 40 for lenticular displays)"
+                }),
+                "view_offset": ("FLOAT", {
+                    "default": 1.0,
+                    "min": 0.1,
+                    "max": 5.0,
+                    "step": 0.1,
+                    "tooltip": "Offset between each view angle in degrees (affects depth intensity)"
+                }),
+                "depth_scale": ("INT", {
+                    "default": 30,
+                    "min": 1,
+                    "max": 100,
+                    "step": 1,
+                    "tooltip": "Controls the strength of the 3D effect - higher values create more pronounced depth"
+                }),
+                "convergence": ("FLOAT", {
+                    "default": 0.5,
+                    "min": 0.0,
+                    "max": 1.0,
+                    "step": 0.05,
+                    "tooltip": "Convergence plane:\n- 0.0: Objects protrude from screen (pop-out effect)\n- 0.5: Balanced (some protrude, some recede)\n- 1.0: Objects recede into screen (depth effect)"
+                }),
+                "grid_layout": (["z_pattern", "column_first", "row_first"], {
+                    "default": "z_pattern",
+                    "tooltip": "Output grid arrangement:\n- z_pattern: Left-to-right, top-to-bottom (standard)\n- column_first: Top-to-bottom, left-to-right\n- row_first: Left-to-right, top-to-bottom (same as z_pattern)"
+                }),
+                "grid_columns": ("INT", {
+                    "default": 8,
+                    "min": 1,
+                    "max": 20,
+                    "step": 1,
+                    "tooltip": "Number of columns in the output grid"
+                }),
+                "depth_blur_strength": ("INT", {
+                    "default": 7,
+                    "min": 3,
+                    "max": 33,
+                    "step": 2,
+                    "tooltip": "Controls how much to blur the depth map transitions. Higher values create smoother depth transitions but may lose detail."
+                }),
+            },
+        }
+
+    RETURN_TYPES = ("IMAGE",)
+    FUNCTION = "process_lenticular"
+    CATEGORY = "Y7 SBS"
+
+    @classmethod
+    def IS_CHANGED(cls, **kwargs):
+        return True
+
+    def process_lenticular(self, base_image, depth_map, method, num_views, view_offset, depth_scale, 
+                          convergence, grid_layout, grid_columns, depth_blur_strength):
+        """
+        Generate multi-view lenticular display image.
+        
+        Args:
+            base_image: Input image tensor [B, H, W, C]
+            depth_map: Depth map tensor [B, H, W, 1 or 3]
+            method: Processing method ("grid_sampling" or "mesh_warping")
+            num_views: Number of views to generate
+            view_offset: Angular offset between views (in degrees)
+            depth_scale: Depth intensity multiplier
+            convergence: Convergence plane (0.0-1.0)
+            grid_layout: How to arrange views in grid
+            grid_columns: Number of columns in output grid
+            depth_blur_strength: Depth map blur strength
+            
+        Returns:
+            Grid image with all views arranged according to layout
+        """
+        print(f"Generating {num_views} views for lenticular display", color.BLUE)
+        
+        # Add progress bar
+        progress = ProgressBar(num_views + 1)
+        
+        # Generate all views
+        result = process_image_lenticular(
+            device, base_image, depth_map, method, num_views, view_offset,
+            depth_scale, convergence, grid_layout, grid_columns, depth_blur_strength, progress
+        )
+        
+        progress.update(1)  # Final step
+        return result
 
 
 # ======================= Processing Functions =======================
@@ -872,6 +988,242 @@ def process_image_anaglyph(device, base_image, depth_map, depth_scale=30, method
     anaglyph[:, :, :, 2] = right_view[:, :, :, 2]  # Blue from right
     
     return (anaglyph,)
+
+
+# IMAGE - LENTICULAR DISPLAY (Multi-View)
+def process_image_lenticular(device, base_image, depth_map, method, num_views, view_offset, 
+                            depth_scale, convergence, grid_layout, grid_columns, depth_blur_strength, progress=None):
+    """
+    Generate multi-view images for lenticular displays (naked eye 3D).
+    
+    Creates N views from a single image and depth map, with views centered around
+    the original image position and distributed evenly left and right.
+    
+    Args:
+        device: torch device (cuda or cpu)
+        base_image: Input image tensor [B, H, W, C]
+        depth_map: Depth map tensor [B, H, W, 1 or 3]
+        method: Processing method ("grid_sampling" or "mesh_warping")
+        num_views: Number of views to generate
+        view_offset: Angular offset between views (affects disparity strength)
+        depth_scale: Base depth intensity
+        convergence: Convergence plane (0.0=protrude, 1.0=recede)
+        grid_layout: Arrangement pattern ("z_pattern", "column_first", "row_first")
+        grid_columns: Number of columns in output grid
+        depth_blur_strength: Depth map blur strength
+        progress: Optional progress bar
+        
+    Returns:
+        Tuple containing grid image tensor with all views arranged
+    """
+    
+    # Move tensors to device
+    base_image = base_image.to(device, dtype=target_dtype)
+    depth_map = depth_map.to(device, dtype=target_dtype)
+    
+    # Get dimensions
+    B, H, W, C = base_image.shape
+    
+    # Prepare depth map
+    depth_map = ensure_depth_map_shape(depth_map, device)
+    if depth_map.shape[2:] != (H, W):
+        depth_map = F.interpolate(depth_map, size=(H, W), mode='bilinear', align_corners=False)
+    
+    # Ensure depth_blur_strength is odd
+    if depth_blur_strength % 2 == 0:
+        depth_blur_strength += 1
+    
+    # Apply depth blur
+    depth_map = apply_depth_blur(depth_map, depth_blur_strength)
+    
+    # Apply convergence adjustment
+    adjusted_depth = depth_map - convergence
+    
+    # Calculate base disparity
+    base_disparity = adjusted_depth * 255.0 * (depth_scale / W)
+    
+    # Calculate view angles centered around 0
+    # For 40 views, this gives: -19.5, -18.5, ..., -0.5, 0.5, ..., 18.5, 19.5
+    view_indices = torch.arange(num_views, dtype=target_dtype, device=device)
+    view_angles = (view_indices - (num_views - 1) / 2.0) * view_offset
+    
+    # Storage for all views
+    all_views = []
+    
+    # Generate each view
+    for i, angle in enumerate(view_angles):
+        # Calculate disparity for this view angle
+        # Positive angle = shift right, negative = shift left
+        view_disparity = base_disparity * (angle / view_offset)
+        
+        if method == "grid_sampling":
+            # Use grid sampling method
+            view_image = generate_view_grid_sampling(
+                device, base_image, view_disparity, H, W, C, B
+            )
+        elif method == "mesh_warping":
+            # Use mesh warping method
+            view_image = generate_view_mesh_warping(
+                device, base_image, view_disparity, H, W, C, B, depth_scale
+            )
+        else:
+            raise ValueError(f"Unknown method: {method}")
+        
+        all_views.append(view_image)
+        
+        if progress is not None:
+            progress.update(1)
+    
+    # Stack all views
+    views_tensor = torch.stack(all_views, dim=0)  # [num_views, B, H, W, C]
+    
+    # Arrange views in grid pattern
+    grid_image = arrange_views_in_grid(views_tensor, num_views, grid_columns, grid_layout, H, W, C, B)
+    
+    return (grid_image,)
+
+
+def generate_view_grid_sampling(device, base_image, disparity, H, W, C, B):
+    """
+    Generate a single view using grid sampling method.
+    
+    Args:
+        device: torch device
+        base_image: Input image [B, H, W, C]
+        disparity: Disparity map [B, 1, H, W]
+        H, W, C, B: Image dimensions
+        
+    Returns:
+        Generated view [B, H, W, C]
+    """
+    # Reorder image from [B, H, W, C] to [B, C, H, W]
+    image = base_image.permute(0, 3, 1, 2)
+    
+    # Get cached coordinate grid
+    y_grid, x_grid = get_grid_gs(H, W, target_dtype, device)
+    
+    # Expand grid to batch size if needed
+    if B > 1:
+        x_grid = x_grid.expand(B, 1, H, W)
+        y_grid = y_grid.expand(B, 1, H, W)
+    
+    # Apply disparity shift
+    x_shifted = x_grid + disparity
+    
+    # Normalize coordinates for grid_sample (-1 to 1)
+    x_norm = 2.0 * x_shifted / (W - 1) - 1.0
+    y_norm = 2.0 * y_grid / (H - 1) - 1.0
+    
+    # Create sampling grid
+    grid = torch.stack((x_norm.squeeze(1), y_norm.squeeze(1)), dim=-1)
+    
+    # Convert to float32 for grid_sample
+    image_float = image.to(torch.float32)
+    grid_float = grid.to(torch.float32)
+    
+    # Sample pixels
+    view = F.grid_sample(image_float, grid_float, mode='bilinear', padding_mode='border', align_corners=True)
+    
+    # Convert back to target dtype and [B, H, W, C] format
+    view = view.to(target_dtype).permute(0, 2, 3, 1)
+    
+    return view
+
+
+def generate_view_mesh_warping(device, base_image, disparity, H, W, C, B, depth_scale):
+    """
+    Generate a single view using mesh warping method.
+    
+    Args:
+        device: torch device
+        base_image: Input image [B, H, W, C]
+        disparity: Disparity map [B, 1, H, W]
+        H, W, C, B: Image dimensions
+        depth_scale: Depth scale factor
+        
+    Returns:
+        Generated view [B, H, W, C]
+    """
+    # Get base grid
+    base_grid = get_cached_grid_mw(H, W, target_dtype, device)
+    grid = base_grid.unsqueeze(0).expand(B, H, W, 2)
+    
+    # Calculate eye separation
+    eye_separation = depth_scale / (W * 2)
+    
+    # Apply disparity to x-coordinates
+    # disparity is [B, 1, H, W], need to convert to [B, H, W, 1]
+    disparity_spatial = disparity.permute(0, 2, 3, 1)
+    
+    # Shift x-coordinates
+    grid_shifted = grid.clone()
+    grid_shifted[:, :, :, 0] = grid[:, :, :, 0] + disparity_spatial.squeeze(-1) * eye_separation
+    
+    # Reorder image from [B, H, W, C] to [B, C, H, W]
+    image = base_image.permute(0, 3, 1, 2)
+    
+    # Convert to float32 for grid_sample
+    image_float = image.to(torch.float32)
+    grid_float = grid_shifted.to(torch.float32)
+    
+    # Sample pixels
+    view = F.grid_sample(image_float, grid_float, mode='bilinear', padding_mode='border', align_corners=True)
+    
+    # Convert back to target dtype and [B, H, W, C] format
+    view = view.to(target_dtype).permute(0, 2, 3, 1)
+    
+    return view
+
+
+def arrange_views_in_grid(views_tensor, num_views, grid_columns, grid_layout, H, W, C, B):
+    """
+    Arrange multiple views into a grid layout.
+    
+    Args:
+        views_tensor: Tensor of all views [num_views, B, H, W, C]
+        num_views: Number of views
+        grid_columns: Number of columns in grid
+        grid_layout: Layout pattern ("z_pattern", "column_first", "row_first")
+        H, W, C, B: Image dimensions
+        
+    Returns:
+        Grid image [B, grid_H, grid_W, C]
+    """
+    # Calculate grid dimensions
+    grid_rows = (num_views + grid_columns - 1) // grid_columns  # Ceiling division
+    
+    # Initialize output grid
+    grid_H = grid_rows * H
+    grid_W = grid_columns * W
+    grid_image = torch.zeros((B, grid_H, grid_W, C), dtype=target_dtype, device=views_tensor.device)
+    
+    # Arrange views according to layout pattern
+    for view_idx in range(num_views):
+        view = views_tensor[view_idx]  # [B, H, W, C]
+        
+        if grid_layout == "z_pattern" or grid_layout == "row_first":
+            # Standard Z-pattern: left-to-right, top-to-bottom
+            row = view_idx // grid_columns
+            col = view_idx % grid_columns
+        elif grid_layout == "column_first":
+            # Column-first: top-to-bottom, left-to-right
+            col = view_idx // grid_rows
+            row = view_idx % grid_rows
+        else:
+            # Default to z_pattern
+            row = view_idx // grid_columns
+            col = view_idx % grid_columns
+        
+        # Calculate position in grid
+        y_start = row * H
+        y_end = y_start + H
+        x_start = col * W
+        x_end = x_start + W
+        
+        # Place view in grid
+        grid_image[:, y_start:y_end, x_start:x_end, :] = view
+    
+    return grid_image
 
 
 # ========================= Helper Functions =========================
