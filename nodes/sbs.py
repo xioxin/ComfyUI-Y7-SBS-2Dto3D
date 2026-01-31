@@ -799,13 +799,13 @@ class Y7_VideoLenticularDisplay:
         # Create a temporary file for memory mapping
         temp_dir = tempfile.gettempdir()
         pid = os.getpid()
-        temp_filename = os.path.join(temp_dir, f"comfyui_lenticular_memmap_{pid}_{id(self)}.npy")
+        timestamp = int(time.time() * 1000)
+        temp_filename = os.path.join(temp_dir, f"comfyui_lenticular_memmap_{pid}_{timestamp}_{id(self)}.npy")
         print(f"Using temporary memmap file: {temp_filename}", color.YELLOW)
         
         # Calculate final shape and create the memory-mapped file
         final_shape = (num_frames, output_frame_height, output_frame_width, channels)
         try:
-            os.makedirs(os.path.dirname(temp_filename), exist_ok=True)
             memmap_array = np.memmap(temp_filename, dtype=numpy_dtype, mode='w+', shape=final_shape)
         except Exception as e:
             print(f"Error creating memory-mapped file: {e}", color.RED)
