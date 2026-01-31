@@ -90,7 +90,6 @@ descriptions = {
         normal("- `grid_layout`: Output arrangement pattern:", 1),
         normal("  - z_pattern: Left-to-right, top-to-bottom (standard).", 2),
         normal("  - column_first: Top-to-bottom, left-to-right.", 2),
-        normal("  - row_first: Left-to-right, top-to-bottom (same as z_pattern).", 2),
         normal("- `grid_columns`: Number of columns in the output grid (default: 8).", 1),
         normal("- `depth_blur_strength`: Controls how much to blur the depth map transitions (3-33, odd values only).", 1),
         normal("Output:"),

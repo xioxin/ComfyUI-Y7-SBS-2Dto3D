@@ -608,9 +608,9 @@ class Y7_LenticularDisplay:
                     "step": 0.05,
                     "tooltip": "Convergence plane:\n- 0.0: Objects protrude from screen (pop-out effect)\n- 0.5: Balanced (some protrude, some recede)\n- 1.0: Objects recede into screen (depth effect)"
                 }),
-                "grid_layout": (["z_pattern", "column_first", "row_first"], {
+                "grid_layout": (["z_pattern", "column_first"], {
                     "default": "z_pattern",
-                    "tooltip": "Output grid arrangement:\n- z_pattern: Left-to-right, top-to-bottom (standard)\n- column_first: Top-to-bottom, left-to-right\n- row_first: Left-to-right, top-to-bottom (same as z_pattern)"
+                    "tooltip": "Output grid arrangement:\n- z_pattern: Left-to-right, top-to-bottom (standard for most displays)\n- column_first: Top-to-bottom, left-to-right"
                 }),
                 "grid_columns": ("INT", {
                     "default": 8,
@@ -1043,7 +1043,10 @@ def process_image_lenticular(device, base_image, depth_map, method, num_views, v
     base_disparity = adjusted_depth * 255.0 * (depth_scale / W)
     
     # Calculate view angles centered around 0
-    # For 40 views, this gives: -19.5, -18.5, ..., -0.5, 0.5, ..., 18.5, 19.5
+    # The views are distributed evenly around the center position:
+    # - For even num_views (e.g., 40): angles are -19.5°, -18.5°, ..., -0.5°, 0.5°, ..., 18.5°, 19.5°
+    # - For odd num_views (e.g., 41): angles are -20°, -19°, ..., -1°, 0°, 1°, ..., 19°, 20°
+    # This ensures the original image position is at the center of the view range
     view_indices = torch.arange(num_views, dtype=target_dtype, device=device)
     view_angles = (view_indices - (num_views - 1) / 2.0) * view_offset
     
@@ -1201,7 +1204,7 @@ def arrange_views_in_grid(views_tensor, num_views, grid_columns, grid_layout, H,
     for view_idx in range(num_views):
         view = views_tensor[view_idx]  # [B, H, W, C]
         
-        if grid_layout == "z_pattern" or grid_layout == "row_first":
+        if grid_layout == "z_pattern":
             # Standard Z-pattern: left-to-right, top-to-bottom
             row = view_idx // grid_columns
             col = view_idx % grid_columns

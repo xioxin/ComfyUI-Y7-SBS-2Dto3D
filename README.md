@@ -125,7 +125,6 @@ ComfyUI custom nodes that convert 2D images or videos into 3D formats using dept
 >   - **grid_layout**: Output arrangement pattern:
 >     - **z_pattern**: Left-to-right, top-to-bottom (standard for most lenticular displays)
 >     - **column_first**: Top-to-bottom, left-to-right
->     - **row_first**: Same as z_pattern
 >   - **grid_columns**: Number of columns in the output grid (default: 8). Adjust based on your display requirements
 >   - **depth_blur_strength**: Controls how much to blur the depth map transitions (3-33, odd values only)
 >     - Lower values for sharper depth separation between objects or layers
